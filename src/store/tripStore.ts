@@ -93,13 +93,15 @@ export const useTripStore = create<TripStore>()((set, get) => ({
   },
 
   updateTrip: (id, data) => {
+    let updated: Trip | undefined;
     set((state) => ({
-      trips: state.trips.map((t) =>
-        t.id === id ? { ...t, ...data, updatedAt: new Date().toISOString() } : t
-      ),
+      trips: state.trips.map((t) => {
+        if (t.id !== id) return t;
+        updated = { ...t, ...data, updatedAt: new Date().toISOString() };
+        return updated;
+      }),
     }));
-    const trip = get().trips.find((t) => t.id === id);
-    if (trip) syncTrip(trip);
+    if (updated) syncTrip(updated);
   },
 
   deleteTrip: (id) => {
@@ -108,10 +110,11 @@ export const useTripStore = create<TripStore>()((set, get) => ({
   },
 
   addSpot: (tripId, dayId, spotData) => {
+    let updated: Trip | undefined;
     set((state) => ({
       trips: state.trips.map((trip) => {
         if (trip.id !== tripId) return trip;
-        return {
+        updated = {
           ...trip,
           updatedAt: new Date().toISOString(),
           days: trip.days.map((day) => {
@@ -120,17 +123,18 @@ export const useTripStore = create<TripStore>()((set, get) => ({
             return { ...day, spots: [...day.spots, newSpot] };
           }),
         };
+        return updated;
       }),
     }));
-    const trip = get().trips.find((t) => t.id === tripId);
-    if (trip) syncTrip(trip);
+    if (updated) syncTrip(updated);
   },
 
   updateSpot: (tripId, dayId, spotId, data) => {
+    let updated: Trip | undefined;
     set((state) => ({
       trips: state.trips.map((trip) => {
         if (trip.id !== tripId) return trip;
-        return {
+        updated = {
           ...trip,
           updatedAt: new Date().toISOString(),
           days: trip.days.map((day) => {
@@ -138,17 +142,18 @@ export const useTripStore = create<TripStore>()((set, get) => ({
             return { ...day, spots: day.spots.map((s) => (s.id === spotId ? { ...s, ...data } : s)) };
           }),
         };
+        return updated;
       }),
     }));
-    const trip = get().trips.find((t) => t.id === tripId);
-    if (trip) syncTrip(trip);
+    if (updated) syncTrip(updated);
   },
 
   removeSpot: (tripId, dayId, spotId) => {
+    let updated: Trip | undefined;
     set((state) => ({
       trips: state.trips.map((trip) => {
         if (trip.id !== tripId) return trip;
-        return {
+        updated = {
           ...trip,
           updatedAt: new Date().toISOString(),
           days: trip.days.map((day) => {
@@ -159,17 +164,18 @@ export const useTripStore = create<TripStore>()((set, get) => ({
             };
           }),
         };
+        return updated;
       }),
     }));
-    const trip = get().trips.find((t) => t.id === tripId);
-    if (trip) syncTrip(trip);
+    if (updated) syncTrip(updated);
   },
 
   reorderSpots: (tripId, dayId, spots) => {
+    let updated: Trip | undefined;
     set((state) => ({
       trips: state.trips.map((trip) => {
         if (trip.id !== tripId) return trip;
-        return {
+        updated = {
           ...trip,
           updatedAt: new Date().toISOString(),
           days: trip.days.map((day) => {
@@ -177,20 +183,21 @@ export const useTripStore = create<TripStore>()((set, get) => ({
             return { ...day, spots: spots.map((s, i) => ({ ...s, order: i })) };
           }),
         };
+        return updated;
       }),
     }));
-    const trip = get().trips.find((t) => t.id === tripId);
-    if (trip) syncTrip(trip);
+    if (updated) syncTrip(updated);
   },
 
   moveSpot: (tripId, fromDayId, toDayId, spotId, toIndex) => {
+    let updated: Trip | undefined;
     set((state) => ({
       trips: state.trips.map((trip) => {
         if (trip.id !== tripId) return trip;
         const fromDay = trip.days.find((d) => d.id === fromDayId);
         const spot = fromDay?.spots.find((s) => s.id === spotId);
         if (!spot) return trip;
-        return {
+        updated = {
           ...trip,
           updatedAt: new Date().toISOString(),
           days: trip.days.map((day) => {
@@ -208,50 +215,53 @@ export const useTripStore = create<TripStore>()((set, get) => ({
             return day;
           }),
         };
+        return updated;
       }),
     }));
-    const trip = get().trips.find((t) => t.id === tripId);
-    if (trip) syncTrip(trip);
+    if (updated) syncTrip(updated);
   },
 
   addCandidate: (tripId, spotData) => {
+    let updated: Trip | undefined;
     set((state) => ({
       trips: state.trips.map((trip) => {
         if (trip.id !== tripId) return trip;
         const newCandidate: CandidateSpot = { id: uuidv4(), ...spotData };
-        return {
+        updated = {
           ...trip,
           updatedAt: new Date().toISOString(),
           candidates: [...(trip.candidates ?? []), newCandidate],
         };
+        return updated;
       }),
     }));
-    const trip = get().trips.find((t) => t.id === tripId);
-    if (trip) syncTrip(trip);
+    if (updated) syncTrip(updated);
   },
 
   removeCandidate: (tripId, candidateId) => {
+    let updated: Trip | undefined;
     set((state) => ({
       trips: state.trips.map((trip) => {
         if (trip.id !== tripId) return trip;
-        return {
+        updated = {
           ...trip,
           updatedAt: new Date().toISOString(),
           candidates: (trip.candidates ?? []).filter((c) => c.id !== candidateId),
         };
+        return updated;
       }),
     }));
-    const trip = get().trips.find((t) => t.id === tripId);
-    if (trip) syncTrip(trip);
+    if (updated) syncTrip(updated);
   },
 
   promoteCandidate: (tripId, dayId, candidateId) => {
+    let updated: Trip | undefined;
     set((state) => ({
       trips: state.trips.map((trip) => {
         if (trip.id !== tripId) return trip;
         const candidate = (trip.candidates ?? []).find((c) => c.id === candidateId);
         if (!candidate) return trip;
-        return {
+        updated = {
           ...trip,
           updatedAt: new Date().toISOString(),
           candidates: (trip.candidates ?? []).filter((c) => c.id !== candidateId),
@@ -273,9 +283,9 @@ export const useTripStore = create<TripStore>()((set, get) => ({
             return { ...day, spots: [...day.spots, newSpot] };
           }),
         };
+        return updated;
       }),
     }));
-    const trip = get().trips.find((t) => t.id === tripId);
-    if (trip) syncTrip(trip);
+    if (updated) syncTrip(updated);
   },
 }));

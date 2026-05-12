@@ -27,13 +27,19 @@ export function SpotDetailPanel({ spot, onClose, onUpdate, onDelete }: Props) {
 
   function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const dataUrl = ev.target?.result as string;
-        onUpdate({ photos: [...spot.photos, dataUrl] });
-      };
-      reader.readAsDataURL(file);
+    if (files.length === 0) return;
+    Promise.all(
+      files.map(
+        (file) =>
+          new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => resolve(ev.target?.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          })
+      )
+    ).then((dataUrls) => {
+      onUpdate({ photos: [...spot.photos, ...dataUrls] });
     });
   }
 

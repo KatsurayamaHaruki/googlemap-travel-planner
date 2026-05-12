@@ -79,7 +79,7 @@ export function SpotSearchModal({ onClose, onSelect }: Props) {
       );
 
       setResults(details.filter((d): d is PlaceResult => d !== null));
-      sessionTokenRef.current = null;
+      // トークンは場所が選択されたときにリセットする（search 完了時ではなく）
     } finally {
       setLoading(false);
     }
@@ -122,7 +122,7 @@ export function SpotSearchModal({ onClose, onSelect }: Props) {
             {results.map((r) => (
               <li key={r.placeId}>
                 <button
-                  onClick={() => { onSelect(r); onClose(); }}
+                  onClick={() => { sessionTokenRef.current = null; onSelect(r); onClose(); }}
                   className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50"
                 >
                   {r.photos[0] ? (

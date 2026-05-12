@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, MapPin, Trash2, Calendar, LogOut } from "lucide-react";
+import { Plus, MapPin, Trash2, Calendar, LogOut, Settings } from "lucide-react";
 import { useTripStore } from "@/store/tripStore";
 import { CreateTripModal } from "@/components/CreateTripModal";
 import { formatDate, tripDuration } from "@/lib/utils";
@@ -55,6 +55,13 @@ export default function HomePage() {
             >
               <Plus size={16} />
               新しい旅行
+            </button>
+            <button
+              onClick={() => router.push("/settings")}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50"
+              title="設定"
+            >
+              <Settings size={15} />
             </button>
             <button
               onClick={handleLogout}

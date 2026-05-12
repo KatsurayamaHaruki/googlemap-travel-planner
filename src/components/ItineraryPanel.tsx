@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Plus, GripVertical, Clock, ChevronDown, ChevronUp, AlertTriangle, Train, Car, Footprints, Navigation, X } from "lucide-react";
 import {
   DndContext,
@@ -445,6 +445,13 @@ function DayBlock({ day, dayIndex, selectedSpotId, onSelectSpot, onAddSpot, onRe
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `day-${day.id}` });
 
+  // Bug3: selectedSpotId が外部（地図マーカー等）から変化したとき自動展開
+  useEffect(() => {
+    if (selectedSpotId && day.spots.some((s) => s.id === selectedSpotId)) {
+      setCollapsed(false);
+    }
+  }, [selectedSpotId, day.spots]);
+
   // Per-leg state indexed by spot order index
   const legsRef = useRef<(RouteLeg | null)[]>([]);
 
@@ -459,12 +466,24 @@ function DayBlock({ day, dayIndex, selectedSpotId, onSelectSpot, onAddSpot, onRe
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = day.spots.findIndex((s) => s.id === active.id);
-    const newIndex = day.spots.findIndex((s) => s.id === over.id);
-    // Reset legs when order changes
-    legsRef.current = [];
-    onLegsChange(day.id, []);
-    onReorder(day.id, arrayMove(day.spots, oldIndex, newIndex));
+    const sortedSpots = day.spots.slice().sort((a, b) => a.order - b.order);
+    const oldIndex = sortedSpots.findIndex((s) => s.id === active.id);
+    const newIndex = sortedSpots.findIndex((s) => s.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const newSortedSpots = arrayMove(sortedSpots, oldIndex, newIndex);
+
+    // Bug6: 隣接ペアが変わらない leg は保持し、新しいペアだけ null にする
+    const oldLegs = [...legsRef.current];
+    const newLegs: (RouteLeg | null)[] = newSortedSpots.slice(0, -1).map((spot, i) => {
+      const nextSpot = newSortedSpots[i + 1];
+      const oldPairIdx = sortedSpots.findIndex(
+        (s, j) => j < sortedSpots.length - 1 && s.id === spot.id && sortedSpots[j + 1].id === nextSpot.id
+      );
+      return oldPairIdx >= 0 ? (oldLegs[oldPairIdx] ?? null) : null;
+    });
+    legsRef.current = newLegs;
+    onLegsChange(day.id, newLegs.filter((l): l is RouteLeg => l !== null));
+    onReorder(day.id, newSortedSpots);
   }
 
   const sortedSpots = day.spots.slice().sort((a, b) => a.order - b.order);

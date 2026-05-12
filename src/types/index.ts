@@ -77,6 +77,9 @@ export interface CandidateSpot {
   memo: string;
   photos: string[];
   openingHours?: OpeningHours;
+  rating?: number;
+  userRatingCount?: number;
+  editorialSummary?: string;
 }
 
 export type TravelMode = "TRANSIT" | "DRIVING" | "WALKING";
