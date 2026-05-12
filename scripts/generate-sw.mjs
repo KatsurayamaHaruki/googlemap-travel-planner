@@ -1,4 +1,14 @@
-const CACHE_NAME = "travel-planner-mp2rmbvh";
+import { writeFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const root = join(__dirname, "..");
+
+// Use a timestamp-based version so each build gets a unique cache key
+const buildId = Date.now().toString(36);
+
+const sw = `const CACHE_NAME = "travel-planner-${buildId}";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -48,3 +58,7 @@ self.addEventListener("fetch", (event) => {
       .catch(() => caches.match(event.request))
   );
 });
+`;
+
+writeFileSync(join(root, "public", "sw.js"), sw);
+console.log(`Generated sw.js with cache version: travel-planner-${buildId}`);
