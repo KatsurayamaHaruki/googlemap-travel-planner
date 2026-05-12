@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, LogOut, User, Map, ChevronRight } from "lucide-react";
+import { ArrowLeft, LogOut, User, Map, Download, Smartphone, CheckCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { useSettingsStore, ALL_CATEGORIES } from "@/store/settingsStore";
 import { CATEGORY_COLOR } from "@/lib/cultural-properties";
+import { usePwaInstall } from "@/hooks/usePwaInstall";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import type { CulturalPropertyCategory } from "@/types";
 
@@ -34,6 +35,7 @@ export default function SettingsPage() {
 
   const { showCulturalProperties, enabledCategories, setShowCulturalProperties, toggleCategory, resetCategories } =
     useSettingsStore();
+  const { state: pwaState, promptInstall } = usePwaInstall();
 
   useEffect(() => {
     const supabase = createClient();
@@ -96,6 +98,59 @@ export default function SettingsPage() {
             </button>
           </div>
         </section>
+
+        {/* アプリインストールセクション */}
+        {pwaState !== "unavailable" && (
+          <section>
+            <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-gray-400">
+              アプリ
+            </h2>
+            <div className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-200 overflow-hidden">
+              {pwaState === "installed" && (
+                <div className="flex items-center gap-3 px-4 py-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 shrink-0">
+                    <CheckCircle size={18} className="text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">インストール済み</p>
+                    <p className="text-xs text-gray-400">ホーム画面からアプリとして起動できます</p>
+                  </div>
+                </div>
+              )}
+
+              {pwaState === "available" && (
+                <button
+                  onClick={promptInstall}
+                  className="flex w-full items-center gap-3 px-4 py-4 text-left hover:bg-blue-50 transition"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 shrink-0">
+                    <Download size={18} className="text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-800">ホーム画面に追加</p>
+                    <p className="text-xs text-gray-400">アプリとしてインストールしてオフラインでも使えます</p>
+                  </div>
+                </button>
+              )}
+
+              {pwaState === "ios" && (
+                <div className="flex items-start gap-3 px-4 py-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 shrink-0 mt-0.5">
+                    <Smartphone size={18} className="text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">ホーム画面に追加</p>
+                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                      Safari の共有ボタン（
+                      <span className="font-semibold">⎋</span>
+                      ）をタップし、「ホーム画面に追加」を選択してください。
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* 文化財セクション */}
         <section>
