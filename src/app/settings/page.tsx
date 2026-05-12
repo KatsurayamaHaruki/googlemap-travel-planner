@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, LogOut, User, Map, Download, Smartphone, CheckCircle } from "lucide-react";
+import { ArrowLeft, LogOut, User, Map, Download, Smartphone, CheckCircle, Info } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { useSettingsStore, ALL_CATEGORIES } from "@/store/settingsStore";
 import { CATEGORY_COLOR } from "@/lib/cultural-properties";
@@ -230,6 +230,46 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
+          </div>
+        </section>
+
+        {/* バージョン情報セクション */}
+        <section>
+          <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-gray-400">
+            バージョン情報
+          </h2>
+          <div className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-200 overflow-hidden divide-y divide-gray-100">
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 shrink-0">
+                <Info size={18} className="text-gray-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-400">アプリバージョン</p>
+                <p className="text-sm font-medium text-gray-800">
+                  v{process.env.NEXT_PUBLIC_APP_VERSION ?? "—"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3">
+              <p className="text-xs text-gray-400">コミット</p>
+              <p className="font-mono text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                {process.env.NEXT_PUBLIC_COMMIT_SHA ?? "—"}
+              </p>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3">
+              <p className="text-xs text-gray-400">ビルド日時</p>
+              <p className="text-xs text-gray-600">
+                {process.env.NEXT_PUBLIC_BUILD_TIME
+                  ? new Date(process.env.NEXT_PUBLIC_BUILD_TIME).toLocaleString("ja-JP", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "—"}
+              </p>
+            </div>
           </div>
         </section>
       </main>
