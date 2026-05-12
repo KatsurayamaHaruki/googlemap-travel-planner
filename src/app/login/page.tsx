@@ -7,13 +7,14 @@ import { Suspense } from "react";
 function LoginContent() {
   const searchParams = useSearchParams();
   const hasError = searchParams.get("error") === "auth";
+  const next = searchParams.get("next") ?? "/";
 
   async function handleGoogleLogin() {
     const supabase = createClient();
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
       },
     });
   }

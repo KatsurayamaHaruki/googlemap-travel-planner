@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, MapPin, Trash2, Calendar, LogOut, Settings } from "lucide-react";
+import { Plus, MapPin, Trash2, Calendar, LogOut, Settings, Users } from "lucide-react";
 import { useTripStore } from "@/store/tripStore";
 import { CreateTripModal } from "@/components/CreateTripModal";
 import { formatDate, tripDuration } from "@/lib/utils";
@@ -10,9 +10,10 @@ import type { User } from "@supabase/supabase-js";
 
 export default function HomePage() {
   const router = useRouter();
-  const { trips, loading, loadTrips, createTrip, deleteTrip } = useTripStore();
+  const { trips, loading, loadTrips, createTrip, deleteTrip, leaveTrip } = useTripStore();
   const [showModal, setShowModal] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [confirmLeave, setConfirmLeave] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
@@ -107,17 +108,34 @@ export default function HomePage() {
                   onClick={() => router.push(`/trips/${trip.id}`)}
                   className="group relative cursor-pointer rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-200 transition hover:shadow-md hover:ring-blue-300"
                 >
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setConfirmDelete(trip.id); }}
-                    className="absolute right-3 top-3 rounded-lg p-1.5 text-gray-300 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  {trip.role === "owner" ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmDelete(trip.id); }}
+                      className="absolute right-3 top-3 rounded-lg p-1.5 text-gray-300 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+                      title="削除"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmLeave(trip.id); }}
+                      className="absolute right-3 top-3 rounded-lg p-1.5 text-gray-300 opacity-0 transition hover:bg-orange-50 hover:text-orange-500 group-hover:opacity-100"
+                      title="脱退"
+                    >
+                      <LogOut size={14} />
+                    </button>
+                  )}
                   <div className="mb-3 flex items-center gap-2">
                     <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
                       {trip.destination}
                     </span>
                     <span className="text-xs text-gray-400">{tripDuration(trip)}日間</span>
+                    {trip.role !== "owner" && (
+                      <span className="flex items-center gap-0.5 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
+                        <Users size={10} />
+                        共有
+                      </span>
+                    )}
                   </div>
                   <h3 className="mb-2 font-semibold text-gray-800 line-clamp-2">{trip.title}</h3>
                   <div className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -158,6 +176,29 @@ export default function HomePage() {
                 className="flex-1 rounded-lg bg-red-500 py-2 text-sm text-white hover:bg-red-600"
               >
                 削除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmLeave && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-80 rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="mb-2 font-semibold text-gray-800">プランから脱退しますか？</h3>
+            <p className="mb-5 text-sm text-gray-500">再参加するにはオーナーから招待してもらう必要があります。</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmLeave(null)}
+                className="flex-1 rounded-lg border border-gray-300 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => { leaveTrip(confirmLeave); setConfirmLeave(null); }}
+                className="flex-1 rounded-lg bg-orange-500 py-2 text-sm text-white hover:bg-orange-600"
+              >
+                脱退
               </button>
             </div>
           </div>

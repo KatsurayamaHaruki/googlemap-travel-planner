@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { v4 as uuidv4 } from "uuid";
 import { addDays, format, parseISO, differenceInDays } from "date-fns";
-import type { Trip, Day, Spot, CandidateSpot } from "@/types";
+import type { Trip, Day, Spot, CandidateSpot, TripRole } from "@/types";
 import { createClient } from "@/lib/supabase";
 
 function buildDays(startDate: string, endDate: string): Day[] {
@@ -15,27 +15,58 @@ function buildDays(startDate: string, endDate: string): Day[] {
   }));
 }
 
-async function syncTrip(trip: Trip) {
+/** roleはDBに保存しない */
+function stripRole(trip: Trip): Omit<Trip, "role"> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { role: _role, ...rest } = trip;
+  return rest;
+}
+
+async function syncTrip(trip: Trip, isNew = false) {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     console.warn("[syncTrip] no session — trip not saved:", trip.id);
     return;
   }
-  const { error } = await supabase.from("trips").upsert({
-    id: trip.id,
-    user_id: session.user.id,
-    data: trip,
-    updated_at: new Date().toISOString(),
-  });
-  if (error) console.error("[syncTrip] upsert failed:", error.message, error.details ?? "");
-  else console.log("[syncTrip] saved:", trip.id);
+  const tripData = stripRole(trip);
+  const now = new Date().toISOString();
+
+  if (isNew) {
+    const { error } = await supabase.from("trips").insert({
+      id: trip.id,
+      user_id: session.user.id,
+      data: tripData,
+      updated_at: now,
+    });
+    if (error) console.error("[syncTrip] insert failed:", error.message);
+    else console.log("[syncTrip] inserted:", trip.id);
+  } else {
+    const { error } = await supabase
+      .from("trips")
+      .update({ data: tripData, updated_at: now })
+      .eq("id", trip.id);
+    if (error) console.error("[syncTrip] update failed:", error.message);
+    else console.log("[syncTrip] updated:", trip.id);
+  }
 }
 
 async function removeFromDb(tripId: string) {
   const supabase = createClient();
   const { error } = await supabase.from("trips").delete().eq("id", tripId);
   if (error) console.error("[removeFromDb] delete failed:", error.message);
+}
+
+async function leaveFromDb(tripId: string) {
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
+  const { error } = await supabase
+    .from("trip_members")
+    .delete()
+    .eq("trip_id", tripId)
+    .eq("user_id", session.user.id);
+  if (error) console.error("[leaveFromDb] delete failed:", error.message);
 }
 
 interface TripStore {
@@ -45,6 +76,7 @@ interface TripStore {
   createTrip: (data: { title: string; destination: string; startDate: string; endDate: string }) => Trip;
   updateTrip: (id: string, data: Partial<Pick<Trip, "title" | "destination">>) => void;
   deleteTrip: (id: string) => void;
+  leaveTrip: (id: string) => void;
   addSpot: (tripId: string, dayId: string, spot: Omit<Spot, "id" | "order">) => void;
   updateSpot: (tripId: string, dayId: string, spotId: string, data: Partial<Spot>) => void;
   removeSpot: (tripId: string, dayId: string, spotId: string) => void;
@@ -62,18 +94,35 @@ export const useTripStore = create<TripStore>()((set, get) => ({
   loadTrips: async () => {
     set({ loading: true });
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from("trips")
-      .select("data")
-      .order("updated_at", { ascending: false });
-    if (error) {
-      console.error("[loadTrips] fetch failed:", error.message, error.details ?? "", error.hint ?? "");
-    } else if (data) {
-      set({ trips: data.map((row) => {
-        const trip = row.data as Trip;
-        // Back-compat: older saved trips may not have candidates
-        return { ...trip, candidates: trip.candidates ?? [] };
-      }) });
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { set({ loading: false }); return; }
+
+    const [tripsResult, membershipsResult] = await Promise.all([
+      supabase
+        .from("trips")
+        .select("id, data, user_id")
+        .order("updated_at", { ascending: false }),
+      supabase
+        .from("trip_members")
+        .select("trip_id, role")
+        .eq("user_id", session.user.id),
+    ]);
+
+    if (tripsResult.error) {
+      console.error("[loadTrips] fetch failed:", tripsResult.error.message);
+    } else if (tripsResult.data) {
+      const membershipMap = new Map<string, Exclude<TripRole, "owner">>(
+        (membershipsResult.data ?? []).map((m) => [m.trip_id, m.role as Exclude<TripRole, "owner">])
+      );
+      set({
+        trips: tripsResult.data.map((row) => {
+          const trip = row.data as Trip;
+          const isOwner = row.user_id === session.user.id;
+          const memberRole = membershipMap.get(row.id as string);
+          const role: TripRole = isOwner ? "owner" : (memberRole ?? "viewer");
+          return { ...trip, candidates: trip.candidates ?? [], role };
+        }),
+      });
     }
     set({ loading: false });
   },
@@ -86,9 +135,10 @@ export const useTripStore = create<TripStore>()((set, get) => ({
       candidates: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      role: "owner",
     };
     set((state) => ({ trips: [...state.trips, trip] }));
-    syncTrip(trip);
+    syncTrip(trip, true);
     return trip;
   },
 
@@ -107,6 +157,11 @@ export const useTripStore = create<TripStore>()((set, get) => ({
   deleteTrip: (id) => {
     set((state) => ({ trips: state.trips.filter((t) => t.id !== id) }));
     removeFromDb(id);
+  },
+
+  leaveTrip: (id) => {
+    set((state) => ({ trips: state.trips.filter((t) => t.id !== id) }));
+    leaveFromDb(id);
   },
 
   addSpot: (tripId, dayId, spotData) => {
