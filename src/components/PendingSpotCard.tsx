@@ -133,8 +133,17 @@ export function PendingSpotCard({ spot, trip, onAddToDay, onAddToCandidate, onCl
     <div
       ref={setNodeRef}
       style={style}
-      className="absolute z-20 rounded-2xl bg-white shadow-xl ring-1 ring-gray-200 left-2 right-2 top-2 md:left-3 md:top-3 md:right-auto md:w-72"
+      className="absolute z-20 rounded-2xl bg-white shadow-xl ring-1 ring-gray-200 left-2 right-2 top-2 max-h-[65vh] overflow-y-auto md:left-3 md:top-3 md:right-auto md:w-72 md:max-h-[80vh]"
     >
+      {/* Close button — always at top-right of card */}
+      <button
+        onClick={onClose}
+        className="absolute right-2 top-2 z-30 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm transition"
+        aria-label="閉じる"
+      >
+        <X size={14} />
+      </button>
+
       {/* Photo */}
       {spot.photos[0] && (
         <div className="relative h-32 w-full overflow-hidden rounded-t-2xl">
@@ -162,10 +171,7 @@ export function PendingSpotCard({ spot, trip, onAddToDay, onAddToCandidate, onCl
         >
           <GoogleMapsIcon size={18} />
         </a>
-        <span className="flex-1 truncate text-sm font-semibold text-gray-800">{spot.name}</span>
-        <button onClick={onClose} className="rounded-lg p-0.5 text-gray-300 hover:text-gray-600">
-          <X size={14} />
-        </button>
+        <span className="flex-1 truncate pr-6 text-sm font-semibold text-gray-800">{spot.name}</span>
       </div>
 
       {/* Summary */}
