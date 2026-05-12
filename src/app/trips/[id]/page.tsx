@@ -1,7 +1,7 @@
 "use client";
 import { useState, use, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Share2, Plus, ChevronUp, ChevronDown, Settings } from "lucide-react";
+import { ArrowLeft, Share2, Plus, ChevronUp, ChevronDown, Settings, Users } from "lucide-react";
 import { APIProvider } from "@vis.gl/react-google-maps";
 import {
   DndContext,
@@ -18,6 +18,7 @@ import { TripMap } from "@/components/TripMap";
 import { SpotSearchModal } from "@/components/SpotSearchModal";
 import { SpotDetailPanel } from "@/components/SpotDetailPanel";
 import { PendingSpotCard } from "@/components/PendingSpotCard";
+import { InviteModal } from "@/components/InviteModal";
 import type { PendingSpot } from "@/components/PendingSpotCard";
 import { encodeShareData } from "@/lib/utils";
 import type { Spot } from "@/types";
@@ -36,9 +37,13 @@ function TripPageInner({ id }: { id: string }) {
   const [searchDayId, setSearchDayId] = useState<string | null>(null);
   const [pendingSpot, setPendingSpot] = useState<PendingSpot | null>(null);
   const [showShareToast, setShowShareToast] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [isDraggingPending, setIsDraggingPending] = useState(false);
   const [legsByDay, setLegsByDay] = useState<Map<string, RouteLeg[]>>(new Map());
   const [panelTab, setPanelTab] = useState<"itinerary" | "candidates">("itinerary");
+
+  const isOwner = trip?.role === "owner";
+  const isReadOnly = trip?.role === "viewer";
 
   // Bottom sheet drag state
   const COLLAPSED_H = 200;
@@ -249,7 +254,7 @@ function TripPageInner({ id }: { id: string }) {
               </span>
             )}
           </button>
-          {panelTab === "itinerary" && (
+          {panelTab === "itinerary" && !isReadOnly && (
             <button
               onClick={() => setSearchDayId(trip.days[0]?.id ?? null)}
               className="ml-1 flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
@@ -311,13 +316,30 @@ function TripPageInner({ id }: { id: string }) {
             <h1 className="truncate font-bold text-gray-800">{trip.title}</h1>
             <p className="text-xs text-gray-500">{trip.destination} · {trip.days.length}日間</p>
           </div>
-          <button
-            onClick={handleShare}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-          >
-            <Share2 size={14} />
-            <span className="hidden sm:inline">共有</span>
-          </button>
+          {isOwner && (
+            <button
+              onClick={() => setShowInviteModal(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+              title="共有・メンバー管理"
+            >
+              <Users size={14} />
+              <span className="hidden sm:inline">共有</span>
+            </button>
+          )}
+          {!isOwner && !isReadOnly && (
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              <Share2 size={14} />
+              <span className="hidden sm:inline">共有</span>
+            </button>
+          )}
+          {isReadOnly && (
+            <span className="rounded-full border border-gray-200 px-3 py-1.5 text-xs text-gray-400">
+              閲覧のみ
+            </span>
+          )}
           <button
             onClick={() => router.push("/settings")}
             className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
@@ -422,6 +444,10 @@ function TripPageInner({ id }: { id: string }) {
           </div>
         )}
       </div>
+
+      {showInviteModal && (
+        <InviteModal tripId={trip.id} onClose={() => setShowInviteModal(false)} />
+      )}
     </DndContext>
   );
 }

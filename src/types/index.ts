@@ -36,6 +36,28 @@ export interface CulturalProperty {
 }
 
 // ---------------------------------------------------------------------------
+// 共有・招待
+// ---------------------------------------------------------------------------
+
+export type TripRole = "owner" | "editor" | "viewer";
+
+export interface TripMember {
+  userId: string;
+  displayName: string;
+  email: string;
+  avatarUrl?: string;
+  role: Exclude<TripRole, "owner">;
+  joinedAt: string;
+}
+
+export interface TripInviteLink {
+  id: string;
+  role: Exclude<TripRole, "owner">;
+  createdAt: string;
+  expiresAt?: string;
+}
+
+// ---------------------------------------------------------------------------
 // 既存の旅行スポット型
 // ---------------------------------------------------------------------------
 
@@ -100,4 +122,6 @@ export interface Trip {
   candidates: CandidateSpot[];
   createdAt: string;
   updatedAt: string;
+  /** ランタイムのみ・DBには保存しない */
+  role?: TripRole;
 }
