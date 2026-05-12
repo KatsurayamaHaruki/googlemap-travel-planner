@@ -1,3 +1,44 @@
+// ---------------------------------------------------------------------------
+// 文化財
+// ---------------------------------------------------------------------------
+
+/** Supabase cultural_properties テーブルの category カラムの値（価値の高い順） */
+export type CulturalPropertyCategory =
+  // ── Tier 1: 特別指定 ──────────────────────────────────────────
+  | "国宝"
+  | "特別史跡"
+  | "特別名勝"
+  | "特別天然記念物"
+  // ── Tier 2: 通常指定 ──────────────────────────────────────────
+  | "重要文化財"
+  | "史跡"
+  | "名勝"
+  | "天然記念物"
+  | "重要文化的景観"
+  | "重要伝統的建造物群保存地区";
+
+/**
+ * get_cultural_properties_in_bounds RPC の戻り値 1 行。
+ * location (GEOMETRY) は RPC 内で lat/lng に展開済み。
+ */
+export interface CulturalProperty {
+  id: number;
+  wikidata_id: string;
+  name: string;
+  description: string | null;
+  category: CulturalPropertyCategory;
+  /** 重複指定を含む全カテゴリ（例: ["特別史跡", "特別名勝"]） */
+  categories: CulturalPropertyCategory[];
+  lat: number;
+  lng: number;
+  image_url: string | null;
+  wikipedia_url: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// 既存の旅行スポット型
+// ---------------------------------------------------------------------------
+
 export interface OpeningHoursPeriod {
   open: { day: number; time: string };  // day: 0=Sun..6=Sat, time: "HHMM"
   close?: { day: number; time: string };
