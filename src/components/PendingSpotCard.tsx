@@ -2,18 +2,22 @@
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, X, MapPin, Plus, ExternalLink, Bookmark } from "lucide-react";
-import type { Trip, OpeningHours } from "@/types";
+import type { Trip, OpeningHours, CulturalPropertyCategory } from "@/types";
 import { formatDate } from "@/lib/utils";
+import { CATEGORY_COLOR } from "@/lib/cultural-properties";
 
 export interface PendingSpot {
   name: string;
   lat: number;
   lng: number;
   address: string;
-  placeId: string;
+  placeId?: string; // Google Places ID。文化財など外部データでは省略可
   website?: string;
   photos: string[];
   openingHours?: OpeningHours;
+  // 文化財マーカーまたは Google POI 近傍マッチ時にセット
+  culturalCategory?: CulturalPropertyCategory;
+  culturalCategories?: CulturalPropertyCategory[];
 }
 
 interface Props {
@@ -70,6 +74,20 @@ export function PendingSpotCard({ spot, trip, onAddToDay, onAddToCandidate, onCl
 
       {/* Address */}
       <p className="px-3 pt-1.5 text-xs text-gray-500 line-clamp-2">{spot.address}</p>
+
+      {/* 文化財バッジ */}
+      {spot.culturalCategory && (
+        <div className="px-3 pt-1">
+          <span
+            className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+            style={{ background: CATEGORY_COLOR[spot.culturalCategory] }}
+          >
+            {spot.culturalCategories && spot.culturalCategories.length > 1
+              ? spot.culturalCategories.join(" ／ ")
+              : spot.culturalCategory}
+          </span>
+        </div>
+      )}
 
       {/* Website */}
       {spot.website && (
