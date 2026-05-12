@@ -1,6 +1,7 @@
 -- ============================================================
 -- 001_trip_sharing.sql
 -- Supabase ダッシュボード > SQL Editor で実行してください
+-- trips.id は TEXT 型のため FK も TEXT で定義しています
 -- ============================================================
 
 -- ── 1. profiles テーブル ──────────────────────────────────────
@@ -58,8 +59,9 @@ ON CONFLICT (id) DO NOTHING;
 
 
 -- ── 2. trip_members テーブル ──────────────────────────────────
+-- trips.id は TEXT 型なので trip_id も TEXT
 CREATE TABLE IF NOT EXISTS trip_members (
-  trip_id   UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  trip_id   TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   user_id   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   role      TEXT NOT NULL CHECK (role IN ('editor', 'viewer')),
   joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -68,20 +70,17 @@ CREATE TABLE IF NOT EXISTS trip_members (
 
 ALTER TABLE trip_members ENABLE ROW LEVEL SECURITY;
 
--- 自分が所属しているtrip_members、またはオーナーなら全メンバーを閲覧可能
 CREATE POLICY "trip_members_select" ON trip_members FOR SELECT
   USING (
     user_id = auth.uid() OR
     EXISTS (SELECT 1 FROM trips WHERE id = trip_id AND user_id = auth.uid())
   );
 
--- トリップのオーナーのみメンバーを追加可能
 CREATE POLICY "trip_members_insert" ON trip_members FOR INSERT
   WITH CHECK (
     EXISTS (SELECT 1 FROM trips WHERE id = trip_id AND user_id = auth.uid())
   );
 
--- オーナーまたはメンバー本人が削除可能
 CREATE POLICY "trip_members_delete" ON trip_members FOR DELETE
   USING (
     user_id = auth.uid() OR
@@ -92,7 +91,7 @@ CREATE POLICY "trip_members_delete" ON trip_members FOR DELETE
 -- ── 3. trip_invite_links テーブル ────────────────────────────
 CREATE TABLE IF NOT EXISTS trip_invite_links (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  trip_id    UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  trip_id    TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   role       TEXT NOT NULL CHECK (role IN ('editor', 'viewer')),
   created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -101,7 +100,6 @@ CREATE TABLE IF NOT EXISTS trip_invite_links (
 
 ALTER TABLE trip_invite_links ENABLE ROW LEVEL SECURITY;
 
--- トリップのオーナーのみ招待リンクを管理可能
 CREATE POLICY "trip_invite_links_all" ON trip_invite_links FOR ALL
   USING (
     EXISTS (SELECT 1 FROM trips WHERE id = trip_id AND user_id = auth.uid())
@@ -113,7 +111,6 @@ CREATE POLICY "trip_invite_links_all" ON trip_invite_links FOR ALL
 
 
 -- ── 4. trips の RLS を更新 (メンバーもアクセス可能に) ──────────
--- 既存のポリシーを全て削除して再作成する
 DO $$
 DECLARE pol TEXT;
 BEGIN
@@ -124,32 +121,28 @@ BEGIN
   END LOOP;
 END $$;
 
--- SELECT: オーナーまたはメンバー
 CREATE POLICY "trips_select" ON trips FOR SELECT
   USING (
     user_id = auth.uid() OR
     EXISTS (SELECT 1 FROM trip_members WHERE trip_id = trips.id AND user_id = auth.uid())
   );
 
--- INSERT: 自分のtrip
 CREATE POLICY "trips_insert" ON trips FOR INSERT
   WITH CHECK (user_id = auth.uid());
 
--- UPDATE: オーナーまたはeditorメンバー
 CREATE POLICY "trips_update" ON trips FOR UPDATE
   USING (
     user_id = auth.uid() OR
     EXISTS (SELECT 1 FROM trip_members WHERE trip_id = trips.id AND user_id = auth.uid() AND role = 'editor')
   );
 
--- DELETE: オーナーのみ
 CREATE POLICY "trips_delete" ON trips FOR DELETE
   USING (user_id = auth.uid());
 
 
 -- ── 5. RPC: トークンから招待情報を取得 (匿名でも可) ──────────
 CREATE OR REPLACE FUNCTION get_invite_token_info(p_token UUID)
-RETURNS TABLE(trip_id UUID, trip_data JSONB, invite_role TEXT)
+RETURNS TABLE(trip_id TEXT, trip_data JSONB, invite_role TEXT)
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public
 AS $$
@@ -169,12 +162,12 @@ GRANT EXECUTE ON FUNCTION get_invite_token_info TO authenticated;
 
 -- ── 6. RPC: 招待を受け入れてメンバーに追加 (認証必須) ────────
 CREATE OR REPLACE FUNCTION accept_trip_invite(p_token UUID)
-RETURNS TABLE(result_trip_id UUID, result_role TEXT)
+RETURNS TABLE(result_trip_id TEXT, result_role TEXT)
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_trip_id  UUID;
+  v_trip_id  TEXT;
   v_role     TEXT;
   v_owner_id UUID;
 BEGIN
@@ -189,7 +182,6 @@ BEGIN
 
   SELECT user_id INTO v_owner_id FROM trips WHERE id = v_trip_id;
 
-  -- オーナー本人が参加しようとした場合はそのまま返す
   IF v_owner_id = auth.uid() THEN
     RETURN QUERY SELECT v_trip_id, 'owner'::TEXT;
     RETURN;
