@@ -1,0 +1,19 @@
+{
+  "name": "旅行プランナー",
+  "short_name": "旅行",
+  "description": "Google Maps で旅行計画を立てよう",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "any",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}

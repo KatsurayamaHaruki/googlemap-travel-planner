@@ -41,7 +41,7 @@ export function PendingSpotCard({ spot, trip, onAddToDay, onAddToCandidate, onCl
     <div
       ref={setNodeRef}
       style={style}
-      className="absolute left-3 top-3 z-20 w-72 rounded-2xl bg-white shadow-xl ring-1 ring-gray-200"
+      className="absolute z-20 rounded-2xl bg-white shadow-xl ring-1 ring-gray-200 left-2 right-2 top-2 md:left-3 md:top-3 md:right-auto md:w-72"
     >
       {/* Photo */}
       {spot.photos[0] && (

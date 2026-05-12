@@ -1,7 +1,7 @@
 "use client";
 import { useState, use, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Share2, Plus } from "lucide-react";
+import { ArrowLeft, Share2, Plus, ChevronUp, ChevronDown } from "lucide-react";
 import { APIProvider } from "@vis.gl/react-google-maps";
 import {
   DndContext,
@@ -30,7 +30,6 @@ function TripPageInner({ id }: { id: string }) {
   const { trips, loading, loadTrips, addSpot, updateSpot, removeSpot, reorderSpots, addCandidate, removeCandidate, promoteCandidate } = useTripStore();
   const trip = trips.find((t) => t.id === id);
 
-  // Direct reload lands here without home page calling loadTrips first
   useEffect(() => {
     if (trips.length === 0) loadTrips();
   }, [loadTrips]);
@@ -43,6 +42,7 @@ function TripPageInner({ id }: { id: string }) {
   const [isDraggingPending, setIsDraggingPending] = useState(false);
   const [legsByDay, setLegsByDay] = useState<Map<string, RouteLeg[]>>(new Map());
   const [panelTab, setPanelTab] = useState<"itinerary" | "candidates">("itinerary");
+  const [mobileSheetExpanded, setMobileSheetExpanded] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -137,6 +137,84 @@ function TripPageInner({ id }: { id: string }) {
   const selectedDayObj = trip.days.find((d) => d.id === selectedDayId);
   const selectedSpot = selectedDayObj?.spots.find((s) => s.id === selectedSpotId);
 
+  // Height of the mobile bottom sheet
+  const sheetExpanded = mobileSheetExpanded || !!(selectedSpot && selectedDayObj);
+
+  // Panel content shared between desktop sidebar and mobile bottom sheet
+  const panelContent = selectedSpot && selectedDayObj ? (
+    <SpotDetailPanel
+      spot={selectedSpot}
+      onClose={() => { setSelectedSpotId(null); setSelectedDayId(null); }}
+      onUpdate={(data) => updateSpot(trip.id, selectedDayObj.id, selectedSpot.id, data)}
+      onDelete={() => {
+        removeSpot(trip.id, selectedDayObj.id, selectedSpot.id);
+        setSelectedSpotId(null);
+        setSelectedDayId(null);
+      }}
+    />
+  ) : (
+    <>
+      <div className="border-b border-gray-100 px-3 py-2 shrink-0">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setPanelTab("itinerary")}
+            className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition ${
+              panelTab === "itinerary"
+                ? "bg-blue-600 text-white"
+                : "text-gray-500 hover:bg-gray-100"
+            }`}
+          >
+            日程
+          </button>
+          <button
+            onClick={() => setPanelTab("candidates")}
+            className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition ${
+              panelTab === "candidates"
+                ? "bg-blue-600 text-white"
+                : "text-gray-500 hover:bg-gray-100"
+            }`}
+          >
+            候補
+            {(trip.candidates ?? []).length > 0 && (
+              <span className="ml-1 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-700">
+                {trip.candidates.length}
+              </span>
+            )}
+          </button>
+          {panelTab === "itinerary" && (
+            <button
+              onClick={() => setSearchDayId(trip.days[0]?.id ?? null)}
+              className="ml-1 flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+            >
+              <Plus size={12} />
+              追加
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-hidden min-h-0">
+        {panelTab === "itinerary" ? (
+          <ItineraryPanel
+            trip={trip}
+            selectedSpotId={selectedSpotId}
+            selectedDayId={selectedDayId}
+            onSelectSpot={handleSelectSpot}
+            onAddSpot={(dayId) => setSearchDayId(dayId)}
+            onReorder={(dayId, spots) => reorderSpots(trip.id, dayId, spots)}
+            onLegsChange={handleLegsChange}
+          />
+        ) : (
+          <CandidatePanel
+            trip={trip}
+            onPromote={(dayId, candidateId) => promoteCandidate(trip.id, dayId, candidateId)}
+            onRemove={(candidateId) => removeCandidate(trip.id, candidateId)}
+          />
+        )}
+      </div>
+    </>
+  );
+
   return (
     <DndContext
       sensors={sensors}
@@ -153,7 +231,11 @@ function TripPageInner({ id }: { id: string }) {
       </DragOverlay>
 
       <div className="flex h-screen flex-col bg-white">
-        <header className="flex items-center gap-3 border-b border-gray-200 px-4 py-3">
+        {/* Header */}
+        <header
+          className="flex shrink-0 items-center gap-3 border-b border-gray-200 px-4 py-3"
+          style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+        >
           <button onClick={() => router.push("/")} className="rounded-lg p-1.5 hover:bg-gray-100">
             <ArrowLeft size={18} className="text-gray-600" />
           </button>
@@ -166,87 +248,56 @@ function TripPageInner({ id }: { id: string }) {
             className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
           >
             <Share2 size={14} />
-            共有
+            <span className="hidden sm:inline">共有</span>
           </button>
         </header>
 
-        <div className="flex flex-1 overflow-hidden">
-          <div className="flex w-80 shrink-0 flex-col border-r border-gray-200">
-            {selectedSpot && selectedDayObj ? (
-              <SpotDetailPanel
-                spot={selectedSpot}
-                onClose={() => { setSelectedSpotId(null); setSelectedDayId(null); }}
-                onUpdate={(data) => updateSpot(trip.id, selectedDayObj.id, selectedSpot.id, data)}
-                onDelete={() => {
-                  removeSpot(trip.id, selectedDayObj.id, selectedSpot.id);
+        {/* Main content area */}
+        <div className="relative flex flex-1 overflow-hidden min-h-0">
+          {/* Side panel: sidebar on desktop, bottom sheet on mobile */}
+          <div
+            className={[
+              "flex flex-col bg-white overflow-hidden z-10",
+              // Mobile: absolute bottom sheet with animated height
+              "absolute bottom-0 left-0 right-0 rounded-t-3xl transition-[height] duration-300",
+              "shadow-[0_-4px_24px_rgba(0,0,0,0.10)]",
+              sheetExpanded ? "h-[72vh]" : "h-[200px]",
+              // Desktop: back to sidebar
+              "md:relative md:rounded-none md:shadow-none",
+              "md:w-80 md:shrink-0 md:border-r md:border-gray-200",
+              "md:h-auto",
+            ].join(" ")}
+            style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+          >
+            {/* Handle bar — mobile only */}
+            <button
+              className="md:hidden flex w-full items-center justify-center gap-2 py-3 shrink-0 active:bg-gray-50 touch-none"
+              onClick={() => {
+                if (selectedSpot && selectedDayObj) {
                   setSelectedSpotId(null);
                   setSelectedDayId(null);
-                }}
-              />
-            ) : (
-              <>
-                {/* Panel header with tabs */}
-                <div className="border-b border-gray-100 px-3 py-2">
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setPanelTab("itinerary")}
-                      className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition ${
-                        panelTab === "itinerary"
-                          ? "bg-blue-600 text-white"
-                          : "text-gray-500 hover:bg-gray-100"
-                      }`}
-                    >
-                      日程
-                    </button>
-                    <button
-                      onClick={() => setPanelTab("candidates")}
-                      className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition ${
-                        panelTab === "candidates"
-                          ? "bg-blue-600 text-white"
-                          : "text-gray-500 hover:bg-gray-100"
-                      }`}
-                    >
-                      候補
-                      {(trip.candidates ?? []).length > 0 && (
-                        <span className="ml-1 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-700">
-                          {trip.candidates.length}
-                        </span>
-                      )}
-                    </button>
-                    {panelTab === "itinerary" && (
-                      <button
-                        onClick={() => setSearchDayId(trip.days[0]?.id ?? null)}
-                        className="ml-1 flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-                      >
-                        <Plus size={12} />
-                        追加
-                      </button>
-                    )}
-                  </div>
-                </div>
+                } else {
+                  setMobileSheetExpanded((v) => !v);
+                }
+              }}
+              aria-label={sheetExpanded ? "パネルを閉じる" : "パネルを開く"}
+            >
+              <div className="h-1 w-10 rounded-full bg-gray-200" />
+              {sheetExpanded ? (
+                <ChevronDown size={14} className="text-gray-300" />
+              ) : (
+                <ChevronUp size={14} className="text-gray-300" />
+              )}
+            </button>
 
-                {panelTab === "itinerary" ? (
-                  <ItineraryPanel
-                    trip={trip}
-                    selectedSpotId={selectedSpotId}
-                    selectedDayId={selectedDayId}
-                    onSelectSpot={handleSelectSpot}
-                    onAddSpot={(dayId) => setSearchDayId(dayId)}
-                    onReorder={(dayId, spots) => reorderSpots(trip.id, dayId, spots)}
-                    onLegsChange={handleLegsChange}
-                  />
-                ) : (
-                  <CandidatePanel
-                    trip={trip}
-                    onPromote={(dayId, candidateId) => promoteCandidate(trip.id, dayId, candidateId)}
-                    onRemove={(candidateId) => removeCandidate(trip.id, candidateId)}
-                  />
-                )}
-              </>
-            )}
+            {/* Panel content */}
+            <div className="flex flex-1 flex-col overflow-hidden min-h-0">
+              {panelContent}
+            </div>
           </div>
 
-          <div className="flex-1 relative">
+          {/* Map */}
+          <div className="flex-1 relative min-w-0">
             <TripMap
               trip={trip}
               selectedSpotId={selectedSpotId}
@@ -288,7 +339,10 @@ function TripPageInner({ id }: { id: string }) {
         )}
 
         {showShareToast && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-gray-800 px-5 py-2.5 text-sm text-white shadow-lg">
+          <div
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-gray-800 px-5 py-2.5 text-sm text-white shadow-lg"
+            style={{ bottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+          >
             URLをクリップボードにコピーしました
           </div>
         )}
