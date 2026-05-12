@@ -1,20 +1,15 @@
 "use client";
 import { useState, useEffect } from "react";
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt(): Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
+import { getPrompt, clearPrompt, subscribePrompt } from "@/lib/pwaInstallPrompt";
 
 export type PwaInstallState =
-  | "installed"   // already running as PWA
-  | "ios"         // iOS – must use Share sheet
-  | "available"   // Chrome/Edge – prompt ready
+  | "installed"    // already running as PWA
+  | "ios"          // iOS – must use Share sheet
+  | "available"    // Chrome/Edge – prompt ready
   | "unavailable"; // browser doesn't support install
 
 export function usePwaInstall() {
   const [state, setState] = useState<PwaInstallState>("unavailable");
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
     // Already installed (standalone mode)
@@ -23,30 +18,35 @@ export function usePwaInstall() {
       return;
     }
 
-    // iOS Safari – no beforeinstallprompt, user must use Share sheet
-    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as Record<string, unknown>).MSStream;
+    // iOS Safari doesn't support beforeinstallprompt
+    const isIos =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+      !(window as unknown as Record<string, unknown>).MSStream;
     if (isIos) {
       setState("ios");
       return;
     }
 
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    // Check if the prompt was already captured by PwaProvider before this hook mounted
+    if (getPrompt()) {
       setState("available");
-    };
+    }
 
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    // Also subscribe to future captures (edge case: hook mounted before PwaProvider fires)
+    const unsubscribe = subscribePrompt(() => {
+      if (getPrompt()) setState("available");
+    });
+    return () => { unsubscribe(); };
   }, []);
 
   async function promptInstall() {
-    if (!deferredPrompt) return;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    const prompt = getPrompt();
+    if (!prompt) return;
+    await prompt.prompt();
+    const { outcome } = await prompt.userChoice;
     if (outcome === "accepted") {
+      clearPrompt();
       setState("installed");
-      setDeferredPrompt(null);
     }
   }
 
