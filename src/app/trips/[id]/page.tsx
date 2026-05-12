@@ -1,5 +1,5 @@
 "use client";
-import { useState, use, useCallback, useEffect } from "react";
+import { useState, use, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Share2, Plus, ChevronUp, ChevronDown, Settings } from "lucide-react";
 import { APIProvider } from "@vis.gl/react-google-maps";
@@ -30,10 +30,7 @@ function TripPageInner({ id }: { id: string }) {
   const { trips, loading, loadTrips, addSpot, updateSpot, removeSpot, reorderSpots, addCandidate, removeCandidate, promoteCandidate } = useTripStore();
   const trip = trips.find((t) => t.id === id);
 
-  useEffect(() => {
-    loadTrips();
-  }, [loadTrips]);
-
+  // ── State ──────────────────────────────────────────────
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
   const [searchDayId, setSearchDayId] = useState<string | null>(null);
@@ -42,7 +39,79 @@ function TripPageInner({ id }: { id: string }) {
   const [isDraggingPending, setIsDraggingPending] = useState(false);
   const [legsByDay, setLegsByDay] = useState<Map<string, RouteLeg[]>>(new Map());
   const [panelTab, setPanelTab] = useState<"itinerary" | "candidates">("itinerary");
-  const [mobileSheetExpanded, setMobileSheetExpanded] = useState(false);
+
+  // Bottom sheet drag state
+  const COLLAPSED_H = 200;
+  const [sheetH, setSheetH] = useState(COLLAPSED_H);
+  const [sheetDragging, setSheetDragging] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const dragRef = useRef({ startY: 0, startH: 0, wasDrag: false });
+
+  // ── Helpers ─────────────────────────────────────────────
+  function getExpandedH() { return Math.round(window.innerHeight * 0.72); }
+
+  function applyRubberBand(h: number, min: number, max: number) {
+    if (h < min) return min - Math.min((min - h) * 0.3, 60);
+    if (h > max) return max + Math.min((h - max) * 0.3, 60);
+    return h;
+  }
+
+  // ── Effects ─────────────────────────────────────────────
+  useEffect(() => {
+    loadTrips();
+  }, [loadTrips]);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  useEffect(() => {
+    if (selectedSpotId && isMobile) setSheetH(getExpandedH());
+  }, [selectedSpotId, isMobile]);
+
+  // ── Sheet drag handlers ──────────────────────────────────
+  function onHandleTouchStart(e: React.TouchEvent) {
+    dragRef.current = { startY: e.touches[0].clientY, startH: sheetH, wasDrag: false };
+    setSheetDragging(true);
+  }
+
+  function onHandleTouchMove(e: React.TouchEvent) {
+    const dy = dragRef.current.startY - e.touches[0].clientY;
+    if (Math.abs(dy) > 5) dragRef.current.wasDrag = true;
+    setSheetH(applyRubberBand(dragRef.current.startH + dy, COLLAPSED_H, getExpandedH()));
+  }
+
+  function onHandleTouchEnd(e: React.TouchEvent) {
+    setSheetDragging(false);
+    const dy = dragRef.current.startY - e.changedTouches[0].clientY;
+    const exp = getExpandedH();
+    const mid = (COLLAPSED_H + exp) / 2;
+
+    if (!dragRef.current.wasDrag) {
+      if (selectedSpot && selectedDayObj) {
+        setSelectedSpotId(null); setSelectedDayId(null);
+        return;
+      }
+      setSheetH(h => h > mid ? COLLAPSED_H : exp);
+      return;
+    }
+    if (dy > 40) setSheetH(exp);
+    else if (dy < -40) setSheetH(COLLAPSED_H);
+    else setSheetH(h => h > mid ? exp : COLLAPSED_H);
+  }
+
+  function onHandleClick() {
+    if (selectedSpot && selectedDayObj) {
+      setSelectedSpotId(null); setSelectedDayId(null);
+      return;
+    }
+    const exp = getExpandedH();
+    const mid = (COLLAPSED_H + exp) / 2;
+    setSheetH(h => h > mid ? COLLAPSED_H : exp);
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -137,8 +206,7 @@ function TripPageInner({ id }: { id: string }) {
   const selectedDayObj = trip.days.find((d) => d.id === selectedDayId);
   const selectedSpot = selectedDayObj?.spots.find((s) => s.id === selectedSpotId);
 
-  // Height of the mobile bottom sheet
-  const sheetExpanded = mobileSheetExpanded || !!(selectedSpot && selectedDayObj);
+  const sheetExpanded = sheetH > 300 || !!(selectedSpot && selectedDayObj);
 
   // Panel content shared between desktop sidebar and mobile bottom sheet
   const panelContent = selectedSpot && selectedDayObj ? (
@@ -265,37 +333,37 @@ function TripPageInner({ id }: { id: string }) {
           <div
             className={[
               "flex flex-col bg-white overflow-hidden z-10",
-              // Mobile: absolute bottom sheet with animated height
-              "absolute bottom-0 left-0 right-0 rounded-t-3xl transition-[height] duration-300",
+              "absolute bottom-0 left-0 right-0 rounded-t-3xl h-[200px]",
               "shadow-[0_-4px_24px_rgba(0,0,0,0.10)]",
-              sheetExpanded ? "h-[72vh]" : "h-[200px]",
-              // Desktop: back to sidebar
               "md:relative md:rounded-none md:shadow-none",
               "md:w-80 md:shrink-0 md:border-r md:border-gray-200",
-              "md:h-auto",
+              "md:!h-auto",
             ].join(" ")}
-            style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+            style={{
+              ...(isMobile ? {
+                height: sheetH,
+                transition: sheetDragging ? "none" : "height 300ms ease",
+              } : {}),
+              paddingBottom: "env(safe-area-inset-bottom, 0px)",
+            }}
           >
-            {/* Handle bar — mobile only */}
-            <button
-              className="md:hidden flex w-full items-center justify-center gap-2 py-3 shrink-0 active:bg-gray-50 touch-none"
-              onClick={() => {
-                if (selectedSpot && selectedDayObj) {
-                  setSelectedSpotId(null);
-                  setSelectedDayId(null);
-                } else {
-                  setMobileSheetExpanded((v) => !v);
-                }
-              }}
+            {/* Handle bar — mobile only (drag to resize) */}
+            <div
+              className="md:hidden flex w-full items-center justify-center gap-2 py-4 shrink-0 active:bg-gray-50 touch-none cursor-row-resize select-none"
+              onTouchStart={onHandleTouchStart}
+              onTouchMove={onHandleTouchMove}
+              onTouchEnd={onHandleTouchEnd}
+              onClick={onHandleClick}
+              role="button"
               aria-label={sheetExpanded ? "パネルを閉じる" : "パネルを開く"}
             >
-              <div className="h-1 w-10 rounded-full bg-gray-200" />
+              <div className="h-1.5 w-12 rounded-full bg-gray-200" />
               {sheetExpanded ? (
                 <ChevronDown size={14} className="text-gray-300" />
               ) : (
                 <ChevronUp size={14} className="text-gray-300" />
               )}
-            </button>
+            </div>
 
             {/* Panel content */}
             <div className="flex flex-1 flex-col overflow-hidden min-h-0">
