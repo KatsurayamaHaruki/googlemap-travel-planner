@@ -65,7 +65,6 @@ export function useDirections(
 ): RouteLeg[] {
   const routesLib = useMapsLibrary("routes");
   const [legs, setLegs] = useState<RouteLeg[]>([]);
-  const abortRef = useRef(false);
 
   useEffect(() => {
     if (!routesLib || !day || !enabled || day.spots.length < 2) {
@@ -73,7 +72,8 @@ export function useDirections(
       return;
     }
 
-    abortRef.current = false;
+    const controller = new AbortController();
+    const { signal } = controller;
     const isTransit = travelMode === "TRANSIT";
     const sortedSpots = day.spots.slice().sort((a, b) => a.order - b.order);
 
@@ -90,6 +90,7 @@ export function useDirections(
             `https://routes.googleapis.com/directions/v2:computeRoutes?key=${apiKey}`,
             {
               method: "POST",
+              signal,
               headers: {
                 "Content-Type": "application/json",
                 "X-Goog-FieldMask": "routes.legs.duration,routes.legs.distanceMeters,routes.legs.polyline",
@@ -117,7 +118,10 @@ export function useDirections(
                 overviewPath,
               } satisfies RouteLeg;
             })
-            .catch(() => null);
+            .catch((err: unknown) => {
+              if (err instanceof Error && err.name === "AbortError") return null;
+              return null;
+            });
         }
 
         return routesLib.Route.computeRoutes({
@@ -128,6 +132,7 @@ export function useDirections(
           fields: ["durationMillis", "distanceMeters", "path"],
         })
           .then(({ routes }) => {
+            if (signal.aborted) return null;
             const route = (routes?.[0]) as Record<string, unknown> | undefined;
             if (!route) return null;
 
@@ -146,13 +151,13 @@ export function useDirections(
           .catch(() => null);
       })
     ).then((results) => {
-      if (!abortRef.current) {
+      if (!signal.aborted) {
         setLegs(results.filter((r): r is RouteLeg => r !== null));
       }
     });
 
     return () => {
-      abortRef.current = true;
+      controller.abort();
     };
   }, [routesLib, day, travelMode, enabled]);
 

@@ -21,6 +21,7 @@ import {
   clusterCulturalProperties,
   type CulturalPropertyCluster,
 } from "@/lib/cultural-properties";
+import { useSettingsStore } from "@/store/settingsStore";
 
 // ---------------------------------------------------------------------------
 // 文化財カスタムマーカー（単体用）
@@ -263,6 +264,13 @@ function usePOIClick(
             "regularOpeningHours",
             "photos",
             "websiteURI",
+            "rating",
+            "userRatingCount",
+            "editorialSummary",
+            "priceLevel",
+            "nationalPhoneNumber",
+            "primaryType",
+            "parkingOptions",
           ],
         })
         .then(() => {
@@ -279,20 +287,36 @@ function usePOIClick(
             (cp) => Math.hypot(cp.lat - lat, cp.lng - lng) < 0.001
           );
 
+          type PlaceExtra = {
+            websiteURI?: string;
+            rating?: number;
+            userRatingCount?: number;
+            editorialSummary?: string;
+            priceLevel?: string;
+            nationalPhoneNumber?: string;
+            primaryType?: string;
+            parkingOptions?: Record<string, boolean>;
+          };
+          const p = place as unknown as PlaceExtra;
+
           onPendingSpot({
             name: place.displayName ?? "",
             lat,
             lng,
             address: place.formattedAddress ?? "",
             placeId,
-            website:
-              nearbyCP?.wikipedia_url ??
-              (place as unknown as { websiteURI?: string }).websiteURI ??
-              undefined,
+            website: nearbyCP?.wikipedia_url ?? p.websiteURI ?? undefined,
             photos,
             openingHours: place.regularOpeningHours
               ? extractOpeningHoursFromPlace(place.regularOpeningHours)
               : undefined,
+            rating: p.rating,
+            userRatingCount: p.userRatingCount,
+            editorialSummary: p.editorialSummary,
+            priceLevel: p.priceLevel,
+            phoneNumber: p.nationalPhoneNumber,
+            primaryType: p.primaryType,
+            parkingOptions: p.parkingOptions,
             culturalCategory: nearbyCP?.category,
             culturalCategories:
               nearbyCP?.categories?.length ? nearbyCP.categories : undefined,
@@ -366,24 +390,33 @@ export function TripMap({
         }
       : { lat: 35.6812, lng: 139.7671 };
 
+  // ── 設定 ────────────────────────────────────────────────────────────
+  const { showCulturalProperties, enabledCategories } = useSettingsStore();
+
   // ── 文化財ステート ──────────────────────────────────────────────────
   const [culturalProperties, setCulturalProperties] = useState<CulturalProperty[]>([]);
   const [currentZoom, setCurrentZoom] = useState(12);
   const [activeCluster, setActiveCluster] = useState<CulturalPropertyCluster | null>(null);
+  const [legendCollapsed, setLegendCollapsed] = useState(false);
 
   // POI click hook に渡す ref（callback 再生成を抑制）
+  // useEffect 経由だと 1 レンダリング遅れるため、レンダー中に直接代入して常に最新値を参照する
   const culturalPropertiesRef = useRef<CulturalProperty[]>([]);
-  useEffect(() => {
-    culturalPropertiesRef.current = culturalProperties;
-  }, [culturalProperties]);
+  culturalPropertiesRef.current = culturalProperties;
 
   const boundsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (boundsTimerRef.current) clearTimeout(boundsTimerRef.current); }, []);
 
+  // カテゴリフィルター適用後の文化財
+  const filteredCulturalProperties = useMemo(
+    () => culturalProperties.filter((cp) => enabledCategories.includes(cp.category)),
+    [culturalProperties, enabledCategories]
+  );
+
   // クラスタ計算（culturalProperties または zoom が変わったときだけ再計算）
   const clusters = useMemo(
-    () => clusterCulturalProperties(culturalProperties, currentZoom),
-    [culturalProperties, currentZoom]
+    () => clusterCulturalProperties(filteredCulturalProperties, currentZoom),
+    [filteredCulturalProperties, currentZoom]
   );
 
   // ── フェッチ ────────────────────────────────────────────────────────
@@ -410,6 +443,14 @@ export function TripMap({
     []
   );
 
+  // 文化財OFF時はデータをクリア
+  useEffect(() => {
+    if (!showCulturalProperties) {
+      setCulturalProperties([]);
+      setActiveCluster(null);
+    }
+  }, [showCulturalProperties]);
+
   // ── カメラ変化ハンドラ ────────────────────────────────────────────
   const handleBoundsChanged = useCallback(
     (e: MapCameraChangedEvent) => {
@@ -420,7 +461,7 @@ export function TripMap({
         return prev !== intZoom ? intZoom : prev;
       });
 
-      if (zoom < MIN_ZOOM_FOR_CULTURAL) {
+      if (!showCulturalProperties || zoom < MIN_ZOOM_FOR_CULTURAL) {
         if (boundsTimerRef.current) clearTimeout(boundsTimerRef.current);
         setCulturalProperties([]);
         setActiveCluster(null);
@@ -433,7 +474,7 @@ export function TripMap({
         fetchCulturalProperties({ north, south, east, west });
       }, BOUNDS_DEBOUNCE_MS);
     },
-    [fetchCulturalProperties]
+    [fetchCulturalProperties, showCulturalProperties]
   );
 
   // ── ハンドラ ────────────────────────────────────────────────────────
@@ -543,19 +584,37 @@ export function TripMap({
       </Map>
 
       {/* 凡例（文化財表示中のみ） */}
-      {culturalProperties.length > 0 && (
-        <div className="absolute bottom-8 right-2 z-10 rounded-xl bg-white/90 px-3 py-2 shadow-md ring-1 ring-gray-200 backdrop-blur-sm">
-          <p className="mb-1 text-[10px] font-semibold text-gray-500">文化財</p>
-          {(Object.entries(CATEGORY_COLOR) as [CulturalPropertyCategory, string][]).map(
-            ([cat, color]) => (
-              <div key={cat} className="flex items-center gap-1.5 text-[11px] text-gray-700">
-                <span
-                  className="inline-block h-3 w-3 shrink-0 rounded-full"
-                  style={{ background: color }}
-                />
-                {cat}
-              </div>
-            )
+      {filteredCulturalProperties.length > 0 && (
+        <div className="absolute bottom-8 right-2 z-10 rounded-xl bg-white/90 shadow-md ring-1 ring-gray-200 backdrop-blur-sm overflow-hidden">
+          <button
+            onClick={() => setLegendCollapsed((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 px-3 py-2 hover:bg-gray-100/60 transition"
+          >
+            <p className="text-[10px] font-semibold text-gray-500">文化財</p>
+            <svg
+              className={`h-3 w-3 text-gray-400 transition-transform ${legendCollapsed ? "rotate-180" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.5}
+              viewBox="0 0 12 12"
+            >
+              <polyline points="2,4 6,8 10,4" />
+            </svg>
+          </button>
+          {!legendCollapsed && (
+            <div className="px-3 pb-2">
+              {(Object.entries(CATEGORY_COLOR) as [CulturalPropertyCategory, string][]).map(
+                ([cat, color]) => (
+                  <div key={cat} className="flex items-center gap-1.5 text-[11px] text-gray-700">
+                    <span
+                      className="inline-block h-3 w-3 shrink-0 rounded-full"
+                      style={{ background: color }}
+                    />
+                    {cat}
+                  </div>
+                )
+              )}
+            </div>
           )}
         </div>
       )}

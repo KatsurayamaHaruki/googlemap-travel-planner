@@ -1,7 +1,7 @@
 "use client";
 import { useState, use, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Share2, Plus, ChevronUp, ChevronDown } from "lucide-react";
+import { ArrowLeft, Share2, Plus, ChevronUp, ChevronDown, Settings } from "lucide-react";
 import { APIProvider } from "@vis.gl/react-google-maps";
 import {
   DndContext,
@@ -31,7 +31,7 @@ function TripPageInner({ id }: { id: string }) {
   const trip = trips.find((t) => t.id === id);
 
   useEffect(() => {
-    if (trips.length === 0) loadTrips();
+    loadTrips();
   }, [loadTrips]);
 
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
@@ -249,6 +249,13 @@ function TripPageInner({ id }: { id: string }) {
           >
             <Share2 size={14} />
             <span className="hidden sm:inline">共有</span>
+          </button>
+          <button
+            onClick={() => router.push("/settings")}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+            title="設定"
+          >
+            <Settings size={14} />
           </button>
         </header>
 
