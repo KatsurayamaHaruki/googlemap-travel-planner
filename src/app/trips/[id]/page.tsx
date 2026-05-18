@@ -1,7 +1,7 @@
 "use client";
 import { useState, use, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Share2, Plus, ChevronUp, ChevronDown, Settings, Users, AlertCircle } from "lucide-react";
+import { ArrowLeft, Share2, Plus, ChevronUp, ChevronDown, Settings, Users, AlertCircle, Trash2 } from "lucide-react";
 import { APIProvider } from "@vis.gl/react-google-maps";
 import {
   DndContext,
@@ -28,7 +28,7 @@ const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
 function TripPageInner({ id }: { id: string }) {
   const router = useRouter();
-  const { trips, loading, loadTrips, addSpot, updateSpot, removeSpot, reorderSpots, addCandidate, removeCandidate, promoteCandidate, updateDayRoute, syncError, clearSyncError } = useTripStore();
+  const { trips, loading, loadTrips, addSpot, updateSpot, removeSpot, reorderSpots, addCandidate, removeCandidate, promoteCandidate, updateDayRoute, deleteTrip, syncError, clearSyncError } = useTripStore();
   const trip = trips.find((t) => t.id === id);
 
   // ── State ──────────────────────────────────────────────
@@ -38,6 +38,7 @@ function TripPageInner({ id }: { id: string }) {
   const [pendingSpot, setPendingSpot] = useState<PendingSpot | null>(null);
   const [showShareToast, setShowShareToast] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDraggingPending, setIsDraggingPending] = useState(false);
   const [legsByDay, setLegsByDay] = useState<Map<string, RouteLeg[]>>(new Map());
   const [panelTab, setPanelTab] = useState<"itinerary" | "candidates">("itinerary");
@@ -354,6 +355,15 @@ function TripPageInner({ id }: { id: string }) {
               閲覧のみ
             </span>
           )}
+          {isOwner && (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-500 hover:bg-red-50 hover:text-red-500 hover:border-red-200"
+              title="旅行を削除"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
           <button
             onClick={() => router.push("/settings")}
             className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
@@ -461,6 +471,29 @@ function TripPageInner({ id }: { id: string }) {
 
       {showInviteModal && (
         <InviteModal tripId={trip.id} onClose={() => setShowInviteModal(false)} />
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-80 rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="mb-2 font-semibold text-gray-800">旅行を削除しますか？</h3>
+            <p className="mb-5 text-sm text-gray-500">この操作は取り消せません。</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="flex-1 rounded-lg border border-gray-300 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => { deleteTrip(trip.id); router.push("/"); }}
+                className="flex-1 rounded-lg bg-red-500 py-2 text-sm text-white hover:bg-red-600"
+              >
+                削除
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </DndContext>
   );

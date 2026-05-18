@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef } from "react";
-import { X, Clock, Trash2, Image as ImageIcon, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { X, Clock, Trash2, Image as ImageIcon, ChevronLeft, ChevronRight, ExternalLink, Check } from "lucide-react";
 import type { Spot } from "@/types";
 
 interface Props {
@@ -15,14 +15,40 @@ export function SpotDetailPanel({ spot, onClose, onUpdate, onDelete }: Props) {
   const [startTime, setStartTime] = useState(spot.startTime ?? "");
   const [duration, setDuration] = useState(spot.duration?.toString() ?? "");
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [saved, setSaved] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  function save() {
+  function flashSaved() {
+    setSaved(true);
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setSaved(false), 1500);
+  }
+
+  function saveAndClose() {
     onUpdate({
       memo,
       startTime: startTime || undefined,
       duration: duration ? parseInt(duration) : undefined,
     });
+    onClose();
+  }
+
+  function handleStartTimeChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const v = e.target.value;
+    setStartTime(v);
+    onUpdate({ startTime: v || undefined });
+    flashSaved();
+  }
+
+  function handleDurationBlur() {
+    onUpdate({ duration: duration ? parseInt(duration) : undefined });
+    flashSaved();
+  }
+
+  function handleMemoBlur() {
+    onUpdate({ memo });
+    flashSaved();
   }
 
   function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -137,7 +163,7 @@ export function SpotDetailPanel({ spot, onClose, onUpdate, onDelete }: Props) {
               <input
                 type="time"
                 value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
+                onChange={handleStartTimeChange}
                 className="flex-1 text-sm focus:outline-none"
               />
             </div>
@@ -149,6 +175,7 @@ export function SpotDetailPanel({ spot, onClose, onUpdate, onDelete }: Props) {
               min={0}
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
+              onBlur={handleDurationBlur}
               placeholder="60"
               className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
             />
@@ -161,6 +188,7 @@ export function SpotDetailPanel({ spot, onClose, onUpdate, onDelete }: Props) {
           <textarea
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
+            onBlur={handleMemoBlur}
             placeholder="メモを入力..."
             rows={4}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none resize-none"
@@ -177,10 +205,10 @@ export function SpotDetailPanel({ spot, onClose, onUpdate, onDelete }: Props) {
           削除
         </button>
         <button
-          onClick={save}
-          className="flex-1 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          onClick={saveAndClose}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
-          保存
+          {saved ? <><Check size={14} />保存済み</> : "保存して閉じる"}
         </button>
       </div>
     </div>

@@ -393,6 +393,23 @@ export function TripMap({
   // ── 設定 ────────────────────────────────────────────────────────────
   const { showCulturalProperties, enabledCategories } = useSettingsStore();
 
+  // スポットがない場合、目的地をジオコーディングしてマップを移動
+  const geocodingLib = useMapsLibrary("geocoding");
+  const map = useMap();
+  useEffect(() => {
+    if (allSpots.length > 0 || !geocodingLib || !map) return;
+    const geocoder = new geocodingLib.Geocoder();
+    geocoder.geocode({ address: trip.destination }, (results, status) => {
+      if (status === "OK" && results?.[0]) {
+        const loc = results[0].geometry.location;
+        map.panTo({ lat: loc.lat(), lng: loc.lng() });
+        map.setZoom(12);
+      }
+    });
+  // trip.destination は旅行作成後に変わらないため、初回のみ実行
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geocodingLib, map]);
+
   // ── 文化財ステート ──────────────────────────────────────────────────
   const [culturalProperties, setCulturalProperties] = useState<CulturalProperty[]>([]);
   const [currentZoom, setCurrentZoom] = useState(12);
