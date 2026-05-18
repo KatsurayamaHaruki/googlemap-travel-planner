@@ -106,10 +106,32 @@ export interface CandidateSpot {
 
 export type TravelMode = "TRANSIT" | "DRIVING" | "WALKING";
 
+export interface SavedRouteStep {
+  duration: string;
+  lineName?: string;
+  lineShortName?: string;
+  vehicleType?: string;
+  departureStop?: string;
+  arrivalStop?: string;
+  departureTime?: string;
+  arrivalTime?: string;
+  numStops?: number;
+}
+
+export interface SavedRoute {
+  mode: TravelMode;
+  duration: string;
+  distance: string;
+  transitFallback: boolean;
+  transitSteps: SavedRouteStep[];
+  overviewPath: { lat: number; lng: number }[];
+}
+
 export interface Day {
   id: string;
   date: string; // ISO date string "YYYY-MM-DD"
   spots: Spot[];
+  routes?: Record<string, SavedRoute>; // key: "fromSpotId-toSpotId"
 }
 
 export interface Trip {

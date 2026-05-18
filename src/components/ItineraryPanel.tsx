@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Plus, GripVertical, Clock, ChevronDown, ChevronUp, AlertTriangle, Train, Car, Footprints, Navigation, X } from "lucide-react";
 import {
   DndContext,
@@ -18,7 +18,7 @@ import {
 import { useDroppable } from "@dnd-kit/core";
 import { useMapsLibrary } from "@vis.gl/react-google-maps";
 import { CSS } from "@dnd-kit/utilities";
-import type { Day, Spot, Trip, TravelMode } from "@/types";
+import type { Day, Spot, Trip, TravelMode, SavedRoute } from "@/types";
 import { formatDate, getDayColor } from "@/lib/utils";
 import { isOutsideHours } from "@/lib/openingHours";
 import type { RouteLeg, TransitStep } from "@/hooks/useDirections";
@@ -62,7 +62,9 @@ interface LegConnectorProps {
   fromSpot: Spot;
   toSpot: Spot;
   dayDate: string;
+  savedRoute?: SavedRoute | null;
   onLegChange: (leg: RouteLeg | null) => void;
+  onRouteSave: (route: SavedRoute | null) => void;
 }
 
 function vehicleIcon(type?: string) {
@@ -74,15 +76,40 @@ function vehicleIcon(type?: string) {
   return "🚌";
 }
 
-function LegConnector({ fromSpot, toSpot, dayDate, onLegChange }: LegConnectorProps) {
+function LegConnector({ fromSpot, toSpot, dayDate, savedRoute, onLegChange, onRouteSave }: LegConnectorProps) {
   const routesLib = useMapsLibrary("routes");
-  const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<TravelMode | null>(null);
+  const [open, setOpen] = useState(() => savedRoute != null);
+  const [mode, setMode] = useState<TravelMode | null>(() => savedRoute?.mode ?? null);
   const [leg, setLeg] = useState<RouteLeg | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [transitFallback, setTransitFallback] = useState(false);
+  const [transitFallback, setTransitFallback] = useState(() => savedRoute?.transitFallback ?? false);
+  const restoredRef = useRef(false);
+  const onLegChangeRef = useRef(onLegChange);
+  onLegChangeRef.current = onLegChange;
+
+  // savedRoute からの復元（routesLib が使える状態になってから overviewPath を再構築）
+  useEffect(() => {
+    if (restoredRef.current || !savedRoute) return;
+    if (savedRoute.transitFallback) {
+      restoredRef.current = true;
+      return;
+    }
+    if (!routesLib) return;
+    restoredRef.current = true;
+    const overviewPath = savedRoute.overviewPath.map(
+      ({ lat, lng }) => new google.maps.LatLng(lat, lng)
+    );
+    const restored: RouteLeg = {
+      duration: savedRoute.duration,
+      distance: savedRoute.distance,
+      transitSteps: savedRoute.transitSteps,
+      overviewPath,
+    };
+    setLeg(restored);
+    onLegChangeRef.current(restored);
+  }, [routesLib, savedRoute]);
 
   async function fetchRoute(selectedMode: TravelMode) {
     if (!routesLib) {
@@ -191,6 +218,14 @@ function LegConnector({ fromSpot, toSpot, dayDate, onLegChange }: LegConnectorPr
       if (!result) {
         if (selectedMode === "TRANSIT") {
           setTransitFallback(true);
+          onRouteSave({
+            mode: selectedMode,
+            duration: "",
+            distance: "",
+            transitFallback: true,
+            transitSteps: [],
+            overviewPath: [],
+          });
         } else {
           setFetchError("経路が見つかりませんでした");
         }
@@ -198,13 +233,27 @@ function LegConnector({ fromSpot, toSpot, dayDate, onLegChange }: LegConnectorPr
       }
       setLeg(result);
       onLegChange(result);
+      onRouteSave({
+        mode: selectedMode,
+        duration: result.duration,
+        distance: result.distance,
+        transitFallback: false,
+        transitSteps: result.transitSteps,
+        overviewPath: result.overviewPath.map((p) => ({ lat: p.lat(), lng: p.lng() })),
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (selectedMode === "TRANSIT") {
-        // Routes API v2 (used internally by recent Maps JS SDK) does not support
-        // TRANSIT in Japan — fall back to a Google Maps deep link.
         console.warn("[LegConnector] transit unavailable via API, using Maps link:", msg);
         setTransitFallback(true);
+        onRouteSave({
+          mode: selectedMode,
+          duration: "",
+          distance: "",
+          transitFallback: true,
+          transitSteps: [],
+          overviewPath: [],
+        });
       } else {
         console.error("[LegConnector] fetchRoute error:", err);
         setFetchError(msg);
@@ -221,7 +270,9 @@ function LegConnector({ fromSpot, toSpot, dayDate, onLegChange }: LegConnectorPr
     setExpanded(false);
     setFetchError(null);
     setTransitFallback(false);
+    restoredRef.current = false;
     onLegChange(null);
+    onRouteSave(null);
   }
 
   const isNav = mode === "DRIVING" || mode === "WALKING";
@@ -437,9 +488,10 @@ interface DayBlockProps {
   onAddSpot: (dayId: string) => void;
   onReorder: (dayId: string, spots: Spot[]) => void;
   onLegsChange: (dayId: string, legs: RouteLeg[]) => void;
+  onRouteSave: (dayId: string, key: string, route: SavedRoute | null) => void;
 }
 
-function DayBlock({ day, dayIndex, selectedSpotId, onSelectSpot, onAddSpot, onReorder, onLegsChange }: DayBlockProps) {
+function DayBlock({ day, dayIndex, selectedSpotId, onSelectSpot, onAddSpot, onReorder, onLegsChange, onRouteSave }: DayBlockProps) {
   const [collapsed, setCollapsed] = useState(false);
   const color = getDayColor(dayIndex);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -521,7 +573,9 @@ function DayBlock({ day, dayIndex, selectedSpotId, onSelectSpot, onAddSpot, onRe
                       fromSpot={sortedSpots[spotIdx]}
                       toSpot={sortedSpots[spotIdx + 1]}
                       dayDate={day.date}
+                      savedRoute={day.routes?.[`${spot.id}-${sortedSpots[spotIdx + 1].id}`] ?? null}
                       onLegChange={(leg) => handleLegChange(spotIdx, leg)}
+                      onRouteSave={(route) => onRouteSave(day.id, `${spot.id}-${sortedSpots[spotIdx + 1].id}`, route)}
                     />
                   )}
                 </div>
@@ -552,9 +606,10 @@ interface Props {
   onAddSpot: (dayId: string) => void;
   onReorder: (dayId: string, spots: Spot[]) => void;
   onLegsChange: (dayId: string, legs: RouteLeg[]) => void;
+  onRouteSave: (dayId: string, key: string, route: SavedRoute | null) => void;
 }
 
-export function ItineraryPanel({ trip, selectedSpotId, selectedDayId, onSelectSpot, onAddSpot, onReorder, onLegsChange }: Props) {
+export function ItineraryPanel({ trip, selectedSpotId, selectedDayId, onSelectSpot, onAddSpot, onReorder, onLegsChange, onRouteSave }: Props) {
   return (
     <div className="h-full overflow-y-auto p-3">
       {trip.days.map((day, i) => (
@@ -567,6 +622,7 @@ export function ItineraryPanel({ trip, selectedSpotId, selectedDayId, onSelectSp
           onAddSpot={onAddSpot}
           onReorder={onReorder}
           onLegsChange={onLegsChange}
+          onRouteSave={onRouteSave}
         />
       ))}
     </div>

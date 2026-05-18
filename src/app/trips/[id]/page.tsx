@@ -28,7 +28,7 @@ const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
 function TripPageInner({ id }: { id: string }) {
   const router = useRouter();
-  const { trips, loading, loadTrips, addSpot, updateSpot, removeSpot, reorderSpots, addCandidate, removeCandidate, promoteCandidate, syncError, clearSyncError } = useTripStore();
+  const { trips, loading, loadTrips, addSpot, updateSpot, removeSpot, reorderSpots, addCandidate, removeCandidate, promoteCandidate, updateDayRoute, syncError, clearSyncError } = useTripStore();
   const trip = trips.find((t) => t.id === id);
 
   // ── State ──────────────────────────────────────────────
@@ -134,6 +134,10 @@ function TripPageInner({ id }: { id: string }) {
       return next;
     });
   }, []);
+
+  const handleRouteSave = useCallback((dayId: string, key: string, route: import("@/types").SavedRoute | null) => {
+    if (trip) updateDayRoute(trip.id, dayId, key, route);
+  }, [trip, updateDayRoute]);
 
   function addPendingToDay(dayId: string) {
     if (!pendingSpot || !trip) return;
@@ -276,6 +280,7 @@ function TripPageInner({ id }: { id: string }) {
             onAddSpot={(dayId) => setSearchDayId(dayId)}
             onReorder={(dayId, spots) => reorderSpots(trip.id, dayId, spots)}
             onLegsChange={handleLegsChange}
+            onRouteSave={handleRouteSave}
           />
         ) : (
           <CandidatePanel
