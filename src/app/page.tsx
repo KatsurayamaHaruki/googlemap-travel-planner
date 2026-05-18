@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, MapPin, Trash2, Calendar, LogOut, Settings, Users } from "lucide-react";
+import { Plus, MapPin, Trash2, Calendar, LogOut, Settings, Users, AlertCircle } from "lucide-react";
 import { useTripStore } from "@/store/tripStore";
 import { CreateTripModal } from "@/components/CreateTripModal";
 import { formatDate, tripDuration } from "@/lib/utils";
@@ -10,7 +10,7 @@ import type { User } from "@supabase/supabase-js";
 
 export default function HomePage() {
   const router = useRouter();
-  const { trips, loading, loadTrips, createTrip, deleteTrip, leaveTrip } = useTripStore();
+  const { trips, loading, loadTrips, createTrip, deleteTrip, leaveTrip, syncError, clearSyncError } = useTripStore();
   const [showModal, setShowModal] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState<string | null>(null);
@@ -74,6 +74,18 @@ export default function HomePage() {
           </div>
         </div>
       </header>
+
+      {syncError && (
+        <div className="bg-red-50 border-b border-red-200 px-6 py-3">
+          <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm text-red-700">
+              <AlertCircle size={16} className="shrink-0" />
+              <span>{syncError}</span>
+            </div>
+            <button onClick={clearSyncError} className="text-red-400 hover:text-red-600 text-sm">✕</button>
+          </div>
+        </div>
+      )}
 
       <main className="mx-auto max-w-4xl px-6 py-8">
         {loading ? (

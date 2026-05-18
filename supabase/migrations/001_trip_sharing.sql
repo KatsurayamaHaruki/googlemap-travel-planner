@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "profiles_select" ON profiles;
+DROP POLICY IF EXISTS "profiles_insert" ON profiles;
+DROP POLICY IF EXISTS "profiles_update" ON profiles;
+
 CREATE POLICY "profiles_select" ON profiles FOR SELECT
   USING (auth.uid() IS NOT NULL);
 
@@ -70,6 +74,10 @@ CREATE TABLE IF NOT EXISTS trip_members (
 
 ALTER TABLE trip_members ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "trip_members_select" ON trip_members;
+DROP POLICY IF EXISTS "trip_members_insert" ON trip_members;
+DROP POLICY IF EXISTS "trip_members_delete" ON trip_members;
+
 CREATE POLICY "trip_members_select" ON trip_members FOR SELECT
   USING (
     user_id = auth.uid() OR
@@ -99,6 +107,8 @@ CREATE TABLE IF NOT EXISTS trip_invite_links (
 );
 
 ALTER TABLE trip_invite_links ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "trip_invite_links_all" ON trip_invite_links;
 
 CREATE POLICY "trip_invite_links_all" ON trip_invite_links FOR ALL
   USING (
