@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { v4 as uuidv4 } from "uuid";
 import { addDays, format, parseISO, differenceInDays } from "date-fns";
-import type { Trip, Day, Spot, CandidateSpot, TripRole } from "@/types";
+import type { Trip, Day, Spot, CandidateSpot, TripRole, SavedRoute } from "@/types";
 import { createClient } from "@/lib/supabase";
 
 function buildDays(startDate: string, endDate: string): Day[] {
@@ -92,6 +92,7 @@ interface TripStore {
   addCandidate: (tripId: string, spot: Omit<CandidateSpot, "id">) => void;
   removeCandidate: (tripId: string, candidateId: string) => void;
   promoteCandidate: (tripId: string, dayId: string, candidateId: string) => void;
+  updateDayRoute: (tripId: string, dayId: string, key: string, route: SavedRoute | null) => void;
 }
 
 export const useTripStore = create<TripStore>()((set, get) => ({
@@ -345,6 +346,31 @@ export const useTripStore = create<TripStore>()((set, get) => ({
               order: day.spots.length,
             };
             return { ...day, spots: [...day.spots, newSpot] };
+          }),
+        };
+        return updated;
+      }),
+    }));
+    if (updated) syncTrip(updated).then((err) => { if (err) set({ syncError: err }); });
+  },
+
+  updateDayRoute: (tripId, dayId, key, route) => {
+    let updated: Trip | undefined;
+    set((state) => ({
+      trips: state.trips.map((trip) => {
+        if (trip.id !== tripId) return trip;
+        updated = {
+          ...trip,
+          updatedAt: new Date().toISOString(),
+          days: trip.days.map((day) => {
+            if (day.id !== dayId) return day;
+            const routes = { ...(day.routes ?? {}) };
+            if (route === null) {
+              delete routes[key];
+            } else {
+              routes[key] = route;
+            }
+            return { ...day, routes };
           }),
         };
         return updated;
