@@ -22,12 +22,12 @@ function stripRole(trip: Trip): Omit<Trip, "role"> {
   return rest;
 }
 
-async function syncTrip(trip: Trip, isNew = false) {
+async function syncTrip(trip: Trip, isNew = false): Promise<string | null> {
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     console.warn("[syncTrip] no session — trip not saved:", trip.id);
-    return;
+    return "ログインセッションが切れています。再ログインしてください。";
   }
   const tripData = stripRole(trip);
   const now = new Date().toISOString();
@@ -39,16 +39,21 @@ async function syncTrip(trip: Trip, isNew = false) {
       data: tripData,
       updated_at: now,
     });
-    if (error) console.error("[syncTrip] insert failed:", error.message);
-    else console.log("[syncTrip] inserted:", trip.id);
+    if (error) {
+      console.error("[syncTrip] insert failed:", error.message);
+      return `保存に失敗しました: ${error.message}`;
+    }
   } else {
     const { error } = await supabase
       .from("trips")
       .update({ data: tripData, updated_at: now })
       .eq("id", trip.id);
-    if (error) console.error("[syncTrip] update failed:", error.message);
-    else console.log("[syncTrip] updated:", trip.id);
+    if (error) {
+      console.error("[syncTrip] update failed:", error.message);
+      return `保存に失敗しました: ${error.message}`;
+    }
   }
+  return null;
 }
 
 async function removeFromDb(tripId: string) {
@@ -72,6 +77,8 @@ async function leaveFromDb(tripId: string) {
 interface TripStore {
   trips: Trip[];
   loading: boolean;
+  syncError: string | null;
+  clearSyncError: () => void;
   loadTrips: () => Promise<void>;
   createTrip: (data: { title: string; destination: string; startDate: string; endDate: string }) => Trip;
   updateTrip: (id: string, data: Partial<Pick<Trip, "title" | "destination">>) => void;
@@ -90,6 +97,8 @@ interface TripStore {
 export const useTripStore = create<TripStore>()((set, get) => ({
   trips: [],
   loading: true,
+  syncError: null,
+  clearSyncError: () => set({ syncError: null }),
 
   loadTrips: async () => {
     set({ loading: true });
@@ -138,7 +147,7 @@ export const useTripStore = create<TripStore>()((set, get) => ({
       role: "owner",
     };
     set((state) => ({ trips: [...state.trips, trip] }));
-    syncTrip(trip, true);
+    syncTrip(trip, true).then((err) => { if (err) set({ syncError: err }); });
     return trip;
   },
 
@@ -151,7 +160,7 @@ export const useTripStore = create<TripStore>()((set, get) => ({
         return updated;
       }),
     }));
-    if (updated) syncTrip(updated);
+    if (updated) syncTrip(updated).then((err) => { if (err) set({ syncError: err }); });
   },
 
   deleteTrip: (id) => {
@@ -181,7 +190,7 @@ export const useTripStore = create<TripStore>()((set, get) => ({
         return updated;
       }),
     }));
-    if (updated) syncTrip(updated);
+    if (updated) syncTrip(updated).then((err) => { if (err) set({ syncError: err }); });
   },
 
   updateSpot: (tripId, dayId, spotId, data) => {
@@ -200,7 +209,7 @@ export const useTripStore = create<TripStore>()((set, get) => ({
         return updated;
       }),
     }));
-    if (updated) syncTrip(updated);
+    if (updated) syncTrip(updated).then((err) => { if (err) set({ syncError: err }); });
   },
 
   removeSpot: (tripId, dayId, spotId) => {
@@ -222,7 +231,7 @@ export const useTripStore = create<TripStore>()((set, get) => ({
         return updated;
       }),
     }));
-    if (updated) syncTrip(updated);
+    if (updated) syncTrip(updated).then((err) => { if (err) set({ syncError: err }); });
   },
 
   reorderSpots: (tripId, dayId, spots) => {
@@ -241,7 +250,7 @@ export const useTripStore = create<TripStore>()((set, get) => ({
         return updated;
       }),
     }));
-    if (updated) syncTrip(updated);
+    if (updated) syncTrip(updated).then((err) => { if (err) set({ syncError: err }); });
   },
 
   moveSpot: (tripId, fromDayId, toDayId, spotId, toIndex) => {
@@ -273,7 +282,7 @@ export const useTripStore = create<TripStore>()((set, get) => ({
         return updated;
       }),
     }));
-    if (updated) syncTrip(updated);
+    if (updated) syncTrip(updated).then((err) => { if (err) set({ syncError: err }); });
   },
 
   addCandidate: (tripId, spotData) => {
@@ -290,7 +299,7 @@ export const useTripStore = create<TripStore>()((set, get) => ({
         return updated;
       }),
     }));
-    if (updated) syncTrip(updated);
+    if (updated) syncTrip(updated).then((err) => { if (err) set({ syncError: err }); });
   },
 
   removeCandidate: (tripId, candidateId) => {
@@ -306,7 +315,7 @@ export const useTripStore = create<TripStore>()((set, get) => ({
         return updated;
       }),
     }));
-    if (updated) syncTrip(updated);
+    if (updated) syncTrip(updated).then((err) => { if (err) set({ syncError: err }); });
   },
 
   promoteCandidate: (tripId, dayId, candidateId) => {
@@ -341,6 +350,6 @@ export const useTripStore = create<TripStore>()((set, get) => ({
         return updated;
       }),
     }));
-    if (updated) syncTrip(updated);
+    if (updated) syncTrip(updated).then((err) => { if (err) set({ syncError: err }); });
   },
 }));

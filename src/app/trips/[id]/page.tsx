@@ -1,7 +1,7 @@
 "use client";
 import { useState, use, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Share2, Plus, ChevronUp, ChevronDown, Settings, Users } from "lucide-react";
+import { ArrowLeft, Share2, Plus, ChevronUp, ChevronDown, Settings, Users, AlertCircle } from "lucide-react";
 import { APIProvider } from "@vis.gl/react-google-maps";
 import {
   DndContext,
@@ -28,7 +28,7 @@ const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
 function TripPageInner({ id }: { id: string }) {
   const router = useRouter();
-  const { trips, loading, loadTrips, addSpot, updateSpot, removeSpot, reorderSpots, addCandidate, removeCandidate, promoteCandidate } = useTripStore();
+  const { trips, loading, loadTrips, addSpot, updateSpot, removeSpot, reorderSpots, addCandidate, removeCandidate, promoteCandidate, syncError, clearSyncError } = useTripStore();
   const trip = trips.find((t) => t.id === id);
 
   // ── State ──────────────────────────────────────────────
@@ -304,6 +304,15 @@ function TripPageInner({ id }: { id: string }) {
       </DragOverlay>
 
       <div className="flex h-screen flex-col bg-white">
+        {syncError && (
+          <div className="shrink-0 bg-red-50 border-b border-red-200 px-4 py-2 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs text-red-700">
+              <AlertCircle size={14} className="shrink-0" />
+              <span>{syncError}</span>
+            </div>
+            <button onClick={clearSyncError} className="text-red-400 hover:text-red-600 text-xs">✕</button>
+          </div>
+        )}
         {/* Header */}
         <header
           className="flex shrink-0 items-center gap-3 border-b border-gray-200 px-4 py-3"
